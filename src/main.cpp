@@ -231,6 +231,8 @@ void *usb_comm_thread(void *argp){
 			}
 
 			if(s_exec_save_to_vita == true){
+				s_exec_save_to_vita = false;
+				s_save_dialog_to_vita = false;
 
 				res = _h0(3);
 				if(res < 0){
@@ -245,12 +247,10 @@ void *usb_comm_thread(void *argp){
 				}else{
 					printf("failed save waveparam (0x%X)\n", resp);
 				}
-
-				s_save_dialog_to_vita = false;
-				s_exec_save_to_vita = false;
 			}
 
 			if(g_exec_update == true || (g_auto_update == true && memcmp(&prev_wave_param, &wave_param, sizeof(wave_param)) != 0)){
+				g_exec_update = false;
 
 				wave_param.color_index = 0x1F;
 
@@ -263,10 +263,10 @@ void *usb_comm_thread(void *argp){
 				psp2wpp_usb_recv_ex(&res, sizeof(res), 5000);
 
 				memcpy(&prev_wave_param, &wave_param, sizeof(prev_wave_param));
-				g_exec_update = false;
 			}
 
 			if(g_exec_load != false){
+				g_exec_load = false;
 
 				int res, resp;
 
@@ -275,16 +275,26 @@ void *usb_comm_thread(void *argp){
 					break;
 				}
 
-				psp2wpp_usb_recv_ex(&resp, sizeof(resp), 5000);
+				res = psp2wpp_usb_recv_ex(&resp, sizeof(resp), 5000);
+				if(res < 0){
+					printf("psp2wpp_usb_recv_ex 0x%X\n", res);
+					break;
+				}
 
 				if(resp < 0){
+					printf("failed load current wave (0x%X)\n", resp);
 					continue;
 				}
 
-				psp2wpp_usb_recv_ex(&wave_param, sizeof(wave_param), 5000);
+				res = psp2wpp_usb_recv_ex(&wave_param, sizeof(wave_param), 5000);
+				if(res < 0){
+					printf("psp2wpp_usb_recv_ex 0x%X\n", res);
+					break;
+				}
 
 				memcpy(&prev_wave_param, &wave_param, sizeof(prev_wave_param));
-				g_exec_load = false;
+
+				printf("Load current wave!\n");
 
 				pthread_mutex_lock(&g_mutex);
 				memcpy(&g_wave_param, &wave_param, sizeof(g_wave_param));
@@ -319,6 +329,10 @@ void *usb_comm_thread(void *argp){
 int psp2wpp_settings_draw_main_settings(void){
 
 	ImGui::SliderInt("color_index", (int *)&(g_wave_param.color_index), 0, 0x1F);
+	if(ImGui::IsItemHovered()){
+		ImGui::SetTooltip("Fixed to 31 when used in \"waveparam.bin\".");
+	}
+
 	ImGui::ColorEdit4("selecter 0", (float *)&(g_wave_param.selecter[0]));
 	ImGui::ColorEdit4("selecter 1", (float *)&(g_wave_param.selecter[1]));
 
@@ -576,6 +590,10 @@ int psp2wpp_settings_draw(void){
 		ImGui::SameLine();
 		if(ImGui::Button("Save waveparam to PS Vita")){
 			s_save_dialog_to_vita = true;
+		}
+
+		if(ImGui::IsItemHovered()){
+			ImGui::SetTooltip("Save waveparam to \"ux0:/data/waveparam.bin\".");
 		}
 
 		ImGui::End();
